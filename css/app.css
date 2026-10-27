@@ -1,0 +1,27 @@
+/* Pagina de filtro: video de la camara a pantalla completa con la escena 3D encima. */
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+}
+
+#app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Video y ayudas 2D en espejo, como un espejo real */
+#video-renderer,
+#canvas-renderer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+}

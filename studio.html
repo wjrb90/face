@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estudio de texturas faciales</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap" rel="stylesheet">
+
+    <!-- shadcn/ui en HTML puro: Basecoat + Tailwind (CDN) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/basecoat.cdn.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/js/all.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@1.54.0/dist/umd/lucide.min.js"></script>
+
+    <style type="text/tailwindcss">
+        @custom-variant dark (&:is(.dark *));
+
+        @theme inline {
+            --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+            --font-mono: "Geist Mono", ui-monospace, monospace;
+            --color-background: var(--background);
+            --color-foreground: var(--foreground);
+            --color-card: var(--card);
+            --color-card-foreground: var(--card-foreground);
+            --color-popover: var(--popover);
+            --color-muted: var(--muted);
+            --color-muted-foreground: var(--muted-foreground);
+            --color-accent: var(--accent);
+            --color-accent-foreground: var(--accent-foreground);
+            --color-primary: var(--primary);
+            --color-primary-foreground: var(--primary-foreground);
+            --color-destructive: var(--destructive);
+            --color-border: var(--border);
+            --color-input: var(--input);
+            --color-ring: var(--ring);
+        }
+    </style>
+
+    <link rel="stylesheet" href="css/studio.css">
+</head>
+
+<body class="bg-background text-foreground font-sans antialiased h-dvh flex flex-col overflow-hidden">
+
+    <!-- Barra superior -->
+    <header class="h-14 shrink-0 border-b flex items-center gap-3 px-4">
+        <div class="size-8 shrink-0 rounded-lg bg-primary text-primary-foreground grid place-items-center">
+            <i data-lucide="scan-face" class="size-4"></i>
+        </div>
+        <div class="leading-tight">
+            <h1 class="text-sm font-semibold whitespace-nowrap">Estudio de texturas</h1>
+            <p class="text-xs text-muted-foreground hidden sm:block">Filtros faciales · MediaPipe</p>
+        </div>
+
+        <div class="ml-auto flex items-center gap-2">
+            <select id="export-size" class="select h-8 text-xs hidden md:flex" aria-label="Tamaño de exportación">
+                <option value="512">512 px</option>
+                <option value="1024" selected>1024 px</option>
+                <option value="2048">2048 px</option>
+            </select>
+            <select id="mask-material" class="select h-8 text-xs hidden md:flex" aria-label="Material de la máscara">
+                <option value="lit">Con luz</option>
+                <option value="basic">Sin luz (colores exactos)</option>
+            </select>
+
+            <button type="button" class="btn" data-variant="ghost" data-size="sm" onclick="document.getElementById('help-dialog').showModal()">
+                <i data-lucide="circle-help"></i> <span class="hidden sm:inline">Ayuda</span>
+            </button>
+
+            <div class="dropdown-menu">
+                <button type="button" id="export-trigger" class="btn" data-size="sm" aria-haspopup="menu" aria-controls="export-menu" aria-expanded="false">
+                    <i data-lucide="download"></i> Exportar <i data-lucide="chevron-down"></i>
+                </button>
+                <div id="export-popover" data-popover aria-hidden="true" data-align="end" class="min-w-64">
+                    <div role="menu" id="export-menu" aria-labelledby="export-trigger">
+                        <div role="menuitem" data-action="export-mask">
+                            <i data-lucide="box"></i>
+                            <div class="flex flex-col">
+                                <span>Máscara para el editor</span>
+                                <span class="text-xs text-muted-foreground">mesh_0 con la textura · .json</span>
+                            </div>
+                        </div>
+                        <div role="menuitem" data-action="export-png">
+                            <i data-lucide="image-down"></i>
+                            <div class="flex flex-col">
+                                <span>Solo la textura</span>
+                                <span class="text-xs text-muted-foreground">Para el Map del material · .png</span>
+                            </div>
+                        </div>
+                        <hr role="separator">
+                        <div role="menuitem" data-action="export-template">
+                            <i data-lucide="layout-grid"></i>
+                            <div class="flex flex-col">
+                                <span>Plantilla UV</span>
+                                <span class="text-xs text-muted-foreground">Guía para Photopea, GIMP o Canva</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)_21rem] overflow-y-auto lg:overflow-hidden">
+
+        <!-- Panel izquierdo: herramientas -->
+        <aside class="lg:border-r lg:overflow-y-auto p-4 flex flex-col gap-6 order-2 lg:order-1">
+
+            <section class="flex flex-col gap-3">
+                <h2 class="panel-title">Herramienta</h2>
+                <div class="tabs">
+                    <nav role="tablist" aria-label="Herramienta" class="w-full">
+                        <button type="button" role="tab" data-tool="move" aria-selected="true" title="Mover (V)">
+                            <i data-lucide="move"></i> Mover
+                        </button>
+                        <button type="button" role="tab" data-tool="brush" aria-selected="false" title="Pincel (B)">
+                            <i data-lucide="brush"></i> Pincel
+                        </button>
+                        <button type="button" role="tab" data-tool="eraser" aria-selected="false" title="Borrador (E)">
+                            <i data-lucide="eraser"></i> Borrar
+                        </button>
+                    </nav>
+                </div>
+
+                <p id="move-hint" class="text-xs text-muted-foreground">
+                    Arrastra una imagen para moverla. Usa las esquinas para escalar y el círculo superior para
+                    rotar (Shift ajusta cada 15°).
+                </p>
+
+                <p id="eraser-hint" class="text-xs text-muted-foreground hidden">
+                    Borra partes de la capa seleccionada: stickers, textos, formas, regiones o pintura.
+                    Para devolverlo usa <strong>Restaurar lo borrado</strong> en Propiedades.
+                </p>
+
+                <div id="brush-options" class="flex flex-col gap-4 hidden">
+                    <div class="field" data-orientation="horizontal">
+                        <label class="label" for="brush-color">Color</label>
+                        <input id="brush-color" type="color" value="#d6336c" class="color-swatch">
+                    </div>
+                    <div class="field">
+                        <div class="flex justify-between"><label class="label" for="brush-size">Tamaño</label><output class="range-value" for="brush-size"></output></div>
+                        <input id="brush-size" class="input" type="range" min="0.003" max="0.1" step="0.001" value="0.02">
+                    </div>
+                    <div class="field">
+                        <div class="flex justify-between"><label class="label" for="brush-hardness">Dureza</label><output class="range-value" for="brush-hardness"></output></div>
+                        <input id="brush-hardness" class="input" type="range" min="0" max="1" step="0.01" value="0.3">
+                    </div>
+                    <div class="field">
+                        <div class="flex justify-between"><label class="label" for="brush-flow">Intensidad</label><output class="range-value" for="brush-flow"></output></div>
+                        <input id="brush-flow" class="input" type="range" min="0.02" max="1" step="0.01" value="0.4">
+                    </div>
+                    <label class="label gap-3">
+                        <input id="brush-symmetry" type="checkbox" role="switch" class="input" checked>
+                        Simetría (ambos lados)
+                    </label>
+                </div>
+            </section>
+
+            <section class="flex flex-col gap-3">
+                <h2 class="panel-title">Foto de referencia</h2>
+                <button type="button" class="drop-zone" data-action="photo">
+                    <i data-lucide="scan-face" class="size-5 text-muted-foreground"></i>
+                    <span class="text-sm font-medium">Subir foto de cara</span>
+                    <span class="text-xs text-muted-foreground">De frente y con buena luz. Se despliega sobre el mapa UV.</span>
+                </button>
+            </section>
+
+            <section class="flex flex-col gap-3">
+                <h2 class="panel-title">Guías</h2>
+                <label class="label gap-3">
+                    <input id="guide-wireframe" type="checkbox" role="switch" class="input" checked>
+                    Malla UV
+                </label>
+                <label class="label gap-3">
+                    <input id="guide-regions" type="checkbox" role="switch" class="input">
+                    Contornos de cara, labios y cejas
+                </label>
+            </section>
+
+            <section class="flex flex-col gap-2 text-xs text-muted-foreground">
+                <h2 class="panel-title">Atajos</h2>
+                <div class="shortcut"><span>Mover · Pincel · Borrar</span><span><kbd class="kbd">V</kbd> <kbd class="kbd">B</kbd> <kbd class="kbd">E</kbd></span></div>
+                <div class="shortcut"><span>Deshacer</span><kbd class="kbd">Ctrl Z</kbd></div>
+                <div class="shortcut"><span>Duplicar capa</span><kbd class="kbd">Ctrl D</kbd></div>
+                <div class="shortcut"><span>Eliminar capa</span><kbd class="kbd">Supr</kbd></div>
+                <div class="shortcut"><span>Mover un poco</span><kbd class="kbd">← ↑ → ↓</kbd></div>
+            </section>
+        </aside>
+
+        <!-- Centro: lienzo UV -->
+        <section class="flex flex-col min-h-[70vh] lg:min-h-0 bg-muted/30 order-1 lg:order-2">
+            <div class="h-12 shrink-0 border-b flex items-center gap-1 px-3">
+                <span class="text-sm font-medium px-1">Textura</span>
+                <span class="badge" data-variant="secondary">mapa UV canónico</span>
+                <span id="status" class="text-xs text-muted-foreground ml-2 truncate" role="status"></span>
+
+                <div class="ml-auto flex items-center gap-1">
+                    <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-action="undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">
+                        <i data-lucide="undo-2"></i>
+                    </button>
+                    <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-action="duplicate" title="Duplicar capa (Ctrl+D)" aria-label="Duplicar capa">
+                        <i data-lucide="copy"></i>
+                    </button>
+                    <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" data-action="delete" title="Eliminar capa (Supr)" aria-label="Eliminar capa">
+                        <i data-lucide="trash-2"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 min-h-0 grid place-items-center p-4 lg:p-8">
+                <div class="uv-stage">
+                    <canvas id="uv-canvas" width="1024" height="1024"></canvas>
+                    <canvas id="uv-overlay" width="1024" height="1024"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Panel derecho: vista previa, capas y propiedades -->
+        <aside class="lg:border-l flex flex-col lg:min-h-0 order-3">
+
+            <section class="p-4 border-b flex flex-col gap-3">
+                <div class="flex items-center justify-between">
+                    <h2 class="panel-title">Vista previa</h2>
+                    <div class="tabs">
+                        <nav role="tablist" aria-label="Fuente de la vista previa">
+                            <button type="button" role="tab" data-preview="photo" aria-selected="true">
+                                <i data-lucide="image"></i> Foto
+                            </button>
+                            <button type="button" role="tab" data-preview="camera" aria-selected="false">
+                                <i data-lucide="camera"></i> Cámara
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+                <canvas id="preview-canvas" class="preview-canvas hidden"></canvas>
+                <div id="preview-empty" class="empty-preview">
+                    <i data-lucide="scan-face" class="size-6"></i>
+                    <span>Sube una foto de cara o activa la cámara para ver el filtro.</span>
+                </div>
+                <video id="preview-video" class="hidden" playsinline muted></video>
+            </section>
+
+            <section class="flex flex-col min-h-48 lg:flex-1 lg:min-h-0">
+                <div class="h-12 shrink-0 flex items-center gap-2 px-4">
+                    <h2 class="panel-title">Capas</h2>
+                    <span id="layer-count" class="badge" data-variant="secondary">0</span>
+
+                    <div class="dropdown-menu ml-auto">
+                        <button type="button" id="add-trigger" class="btn" data-variant="outline" data-size="icon-sm" aria-haspopup="menu" aria-controls="add-menu" aria-expanded="false" title="Añadir capa" aria-label="Añadir capa">
+                            <i data-lucide="plus"></i>
+                        </button>
+                        <div id="add-popover" data-popover aria-hidden="true" data-align="end" class="min-w-60">
+                            <div role="menu" id="add-menu" aria-labelledby="add-trigger" class="max-h-[70vh] overflow-y-auto">
+                                <div role="group" aria-labelledby="add-group-images">
+                                    <div role="heading" id="add-group-images">Imágenes</div>
+                                    <div role="menuitem" data-action="sticker"><i data-lucide="image-plus"></i> Sticker desde archivo…</div>
+                                    <div role="menuitem" data-action="text"><i data-lucide="type"></i> Texto o emoji…</div>
+                                    <div role="menuitem" data-action="photo"><i data-lucide="scan-face"></i> Foto de cara (referencia)…</div>
+                                </div>
+                                <hr role="separator">
+                                <div role="group" aria-labelledby="add-group-shapes">
+                                    <div role="heading" id="add-group-shapes">Formas</div>
+                                    <div role="menuitem" data-action="shape:blush"><i data-lucide="circle-dot"></i> Rubor</div>
+                                    <div role="menuitem" data-action="shape:freckles"><i data-lucide="sparkles"></i> Pecas</div>
+                                    <div role="menuitem" data-action="shape:heart"><i data-lucide="heart"></i> Corazón</div>
+                                    <div role="menuitem" data-action="shape:star"><i data-lucide="star"></i> Estrella</div>
+                                </div>
+                                <hr role="separator">
+                                <div role="group" aria-labelledby="add-group-regions">
+                                    <div role="heading" id="add-group-regions">Maquillaje por regiones</div>
+                                    <div role="menuitem" data-action="region:lips"><i data-lucide="palette"></i> Labios</div>
+                                    <div role="menuitem" data-action="region:eyes"><i data-lucide="eye"></i> Delineado de ojos</div>
+                                    <div role="menuitem" data-action="region:brows"><i data-lucide="minus"></i> Cejas</div>
+                                    <div role="menuitem" data-action="region:face"><i data-lucide="smile"></i> Cara completa</div>
+                                </div>
+                                <hr role="separator">
+                                <div role="menuitem" data-action="paint"><i data-lucide="brush"></i> Capa de pintura</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <ul id="layer-list" class="flex-1 min-h-0 overflow-y-auto px-2 pb-2 flex flex-col gap-0.5" aria-label="Capas"></ul>
+            </section>
+
+            <section class="border-t flex flex-col lg:max-h-[45%] lg:min-h-0">
+                <div class="h-12 shrink-0 flex items-center px-4">
+                    <h2 class="panel-title">Propiedades</h2>
+                </div>
+                <div id="layer-props" class="overflow-y-auto px-4 pb-4 flex flex-col gap-4"></div>
+            </section>
+        </aside>
+    </main>
+
+    <input id="photo-input" type="file" accept="image/*" class="hidden">
+    <input id="sticker-input" type="file" accept="image/*" multiple class="hidden">
+
+    <!-- Diálogo: texto o emoji -->
+    <dialog id="text-dialog" class="dialog" aria-labelledby="text-dialog-title" onclick="if (event.target === this) this.close()">
+        <div class="w-full sm:max-w-sm">
+            <header>
+                <h2 id="text-dialog-title">Añadir texto o emoji</h2>
+                <p>Se añade como sticker. Puedes cambiar el texto y el color después.</p>
+            </header>
+            <section class="flex flex-col gap-4">
+                <div class="field">
+                    <label class="label" for="text-input">Texto</label>
+                    <input id="text-input" class="input" type="text" value="✨" autocomplete="off">
+                </div>
+                <div class="field" data-orientation="horizontal">
+                    <label class="label" for="text-color">Color</label>
+                    <input id="text-color" type="color" value="#ffffff" class="color-swatch">
+                </div>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancelar</button>
+                <button type="button" class="btn" id="text-confirm">Añadir</button>
+            </footer>
+        </div>
+    </dialog>
+
+    <!-- Diálogo: ayuda -->
+    <dialog id="help-dialog" class="dialog" aria-labelledby="help-dialog-title" onclick="if (event.target === this) this.close()">
+        <div class="w-full sm:max-w-lg">
+            <header>
+                <h2 id="help-dialog-title">Cómo crear un filtro</h2>
+                <p>La textura se pinta sobre el mapa UV canónico de MediaPipe, el mismo para todos los filtros.</p>
+            </header>
+            <section>
+                <ol class="list-decimal ps-5 flex flex-col gap-2 text-sm">
+                    <li><strong>Opcional:</strong> sube una foto de frente. Se despliega sobre el mapa UV como guía;
+                        ocúltala o bórrala antes de exportar.</li>
+                    <li>Con el botón <strong>+</strong> de Capas añade stickers, texto, formas, maquillaje por
+                        regiones o una capa de pintura. <em>Espejo</em> repite la capa en el otro lado de la cara.</li>
+                    <li>Revisa el resultado en la vista previa con la foto o con la cámara.</li>
+                    <li><strong>Exportar → Máscara para el editor</strong> e impórtala en el editor de three.js
+                        (<em>File → Import</em>). Borra el <code>mesh_0</code> anterior: la web deforma con la cara
+                        el objeto llamado <code>mesh_0</code>.</li>
+                    <li>Si la máscara ya está en la escena, exporta <strong>solo la textura</strong> y asígnala como
+                        <em>Map</em> de su material.</li>
+                </ol>
+                <p class="text-sm text-muted-foreground mt-4">Las zonas transparentes dejan ver la piel real. Los modos
+                    de mezcla solo mezclan con las capas de abajo, no con la cámara.</p>
+            </section>
+            <footer>
+                <button type="button" class="btn" onclick="this.closest('dialog').close()">Entendido</button>
+            </footer>
+        </div>
+    </dialog>
+
+    <script type="module" src="js/studio/studio_app.js"></script>
+</body>
+
+</html>
